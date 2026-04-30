@@ -27,6 +27,53 @@
     </header>
 
     <main>
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Hosting and storage</p>
+            <h2>SharePoint Lists</h2>
+          </div>
+          <span id="storageStatus" class="status-pill">Local browser storage</span>
+        </div>
+        <p class="section-copy">
+          Host these static files in a SharePoint document library and use SharePoint Lists as the
+          shared data store. The app uses the signed-in user's SharePoint permissions; no external
+          libraries or Microsoft Graph dependency are required.
+        </p>
+        <form id="storageForm" class="storage-form">
+          <div class="form-grid">
+            <label>
+              Storage mode
+              <select id="storageMode">
+                <option value="local">Local browser storage</option>
+                <option value="sharepoint">SharePoint Lists</option>
+              </select>
+            </label>
+            <label>
+              SharePoint site URL
+              <input id="sharePointSiteUrl" placeholder="https://tenant.sharepoint.com/sites/ai-roi">
+            </label>
+            <label>
+              Connector list
+              <input id="connectorListName" placeholder="AI ROI Connectors">
+            </label>
+            <label>
+              Usage list
+              <input id="usageListName" placeholder="AI ROI Usage Records">
+            </label>
+            <label>
+              Use case list
+              <input id="useCaseListName" placeholder="AI ROI Use Cases">
+            </label>
+          </div>
+          <div class="form-actions">
+            <button class="button" type="submit">Save storage settings</button>
+            <button id="loadSharePointButton" class="button button-secondary" type="button">Load from SharePoint</button>
+            <button id="saveSharePointButton" class="button button-secondary" type="button">Save all to SharePoint</button>
+          </div>
+        </form>
+      </section>
+
       <section class="summary-grid" aria-label="Executive summary">
         <article class="metric-card">
           <span class="metric-label">Total tokens</span>

@@ -1,4 +1,13 @@
 const STORAGE_KEY = "ai-roi-dashboard-state-v2";
+const STORAGE_SETTINGS_KEY = "ai-roi-dashboard-storage-settings-v1";
+
+const defaultStorageSettings = {
+  mode: "local",
+  siteUrl: "",
+  connectorListName: "AI ROI Connectors",
+  usageListName: "AI ROI Usage Records",
+  useCaseListName: "AI ROI Use Cases",
+};
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -88,6 +97,9 @@ const demoState = {
 };
 
 let state = loadState();
+let storageSettings = loadStorageSettings();
+const sharePointEntityTypeCache = new Map();
+let sharePointDigest = null;
 const filters = { search: "", category: "", tag: "" };
 
 const $ = (selector) => document.querySelector(selector);
@@ -106,6 +118,13 @@ const els = {
   tagFilter: $("#tagFilter"),
   searchFilter: $("#searchFilter"),
   toast: $("#toast"),
+  storageForm: $("#storageForm"),
+  storageMode: $("#storageMode"),
+  sharePointSiteUrl: $("#sharePointSiteUrl"),
+  connectorListName: $("#connectorListName"),
+  usageListName: $("#usageListName"),
+  useCaseListName: $("#useCaseListName"),
+  storageStatus: $("#storageStatus"),
   connectorDialog: $("#connectorDialog"),
   connectorForm: $("#connectorForm"),
   usageDialog: $("#usageDialog"),
@@ -132,6 +151,20 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function loadStorageSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_SETTINGS_KEY));
+    return { ...defaultStorageSettings, ...(saved || {}) };
+  } catch (error) {
+    console.warn("Unable to load storage settings", error);
+    return { ...defaultStorageSettings };
+  }
+}
+
+function saveStorageSettings() {
+  localStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(storageSettings));
 }
 
 function money(value, digits = 0) {
@@ -368,10 +401,21 @@ function renderUseCases() {
 
 function render() {
   renderSummary();
+  renderStorageSettings();
   renderConnectors();
   renderUsage();
   renderFilters();
   renderUseCases();
+}
+
+function renderStorageSettings() {
+  setField("storageMode", storageSettings.mode);
+  setField("sharePointSiteUrl", storageSettings.siteUrl);
+  setField("connectorListName", storageSettings.connectorListName);
+  setField("usageListName", storageSettings.usageListName);
+  setField("useCaseListName", storageSettings.useCaseListName);
+  els.storageStatus.textContent =
+    storageSettings.mode === "sharepoint" ? "SharePoint Lists" : "Local browser storage";
 }
 
 function openDialog(dialog) {
@@ -476,9 +520,8 @@ function upsertConnector(event) {
   state.connectors = existing
     ? state.connectors.map((item) => (item.id === id ? connector : item))
     : [connector, ...state.connectors];
-  persistAndRender();
   closeDialog(els.connectorDialog);
-  showToast("Connector saved.");
+  persistAndRenderAsync("connectors", connector).then(() => showToast("Connector saved."));
 }
 
 function upsertUsage(event) {
@@ -503,9 +546,8 @@ function upsertUsage(event) {
   state.usageRecords = existing
     ? state.usageRecords.map((item) => (item.id === id ? record : item))
     : [record, ...state.usageRecords];
-  persistAndRender();
   closeDialog(els.usageDialog);
-  showToast("Usage record saved.");
+  persistAndRenderAsync("usageRecords", record).then(() => showToast("Usage record saved."));
 }
 
 function upsertUseCase(event) {
@@ -536,9 +578,8 @@ function upsertUseCase(event) {
   state.useCases = existing
     ? state.useCases.map((item) => (item.id === id ? useCase : item))
     : [useCase, ...state.useCases];
-  persistAndRender();
   closeDialog(els.useCaseDialog);
-  showToast("Use case saved.");
+  persistAndRenderAsync("useCases", useCase).then(() => showToast("Use case saved."));
 }
 
 async function syncConnector(id) {
@@ -564,14 +605,15 @@ async function syncConnector(id) {
       status: `Synced ${records.length} record${records.length === 1 ? "" : "s"}`,
       lastSync: new Date().toLocaleString(),
     });
-    persistAndRender();
-    showToast(`Synced ${records.length} usage records from ${connector.name}.`);
+    persistAndRenderAsync().then(() =>
+      showToast(`Synced ${records.length} usage records from ${connector.name}.`),
+    );
   } catch (error) {
     updateConnector(id, {
       status: `Sync failed: ${error.message}`,
       lastSync: new Date().toLocaleString(),
     });
-    persistAndRender();
+    persistAndRenderAsync("connectors", state.connectors.find((item) => item.id === id));
     showToast(`Sync failed: ${error.message}`, true);
   }
 }
@@ -714,6 +756,284 @@ function persistAndRender() {
   render();
 }
 
+async function persistAndRenderAsync(collectionName = null, changedItem = null) {
+  saveState();
+  render();
+
+  if (storageSettings.mode !== "sharepoint") return;
+
+  try {
+    if (collectionName && changedItem) {
+      await upsertSharePointRecord(collectionName, changedItem);
+    } else {
+      await saveAllToSharePoint();
+    }
+  } catch (error) {
+    showToast(`Saved locally, but SharePoint sync failed: ${error.message}`, true);
+  }
+}
+
+function readStorageSettingsFromForm() {
+  return {
+    mode: els.storageMode.value,
+    siteUrl: els.sharePointSiteUrl.value.trim().replace(/\/+$/, ""),
+    connectorListName: els.connectorListName.value.trim() || defaultStorageSettings.connectorListName,
+    usageListName: els.usageListName.value.trim() || defaultStorageSettings.usageListName,
+    useCaseListName: els.useCaseListName.value.trim() || defaultStorageSettings.useCaseListName,
+  };
+}
+
+function validateSharePointSettings() {
+  if (storageSettings.mode !== "sharepoint") return;
+  if (!storageSettings.siteUrl) {
+    throw new Error("SharePoint site URL is required when SharePoint Lists mode is enabled.");
+  }
+}
+
+async function saveStorageForm(event) {
+  event.preventDefault();
+  storageSettings = readStorageSettingsFromForm();
+  sharePointDigest = null;
+  saveStorageSettings();
+  renderStorageSettings();
+  showToast(
+    storageSettings.mode === "sharepoint"
+      ? "SharePoint Lists storage settings saved."
+      : "Local browser storage selected.",
+  );
+}
+
+async function loadFromSharePoint() {
+  storageSettings = readStorageSettingsFromForm();
+  saveStorageSettings();
+  validateSharePointSettings();
+  showToast("Loading SharePoint list data...");
+
+  try {
+    const [connectors, usageRecords, useCases] = await Promise.all([
+      fetchSharePointCollection("connectors"),
+      fetchSharePointCollection("usageRecords"),
+      fetchSharePointCollection("useCases"),
+    ]);
+    state = { connectors, usageRecords, useCases };
+    persistAndRender();
+    showToast("Loaded dashboard data from SharePoint Lists.");
+  } catch (error) {
+    showToast(`SharePoint load failed: ${error.message}`, true);
+  }
+}
+
+async function saveAllToSharePoint() {
+  validateSharePointSettings();
+  showToast("Saving dashboard data to SharePoint Lists...");
+
+  await Promise.all([
+    syncSharePointCollection("connectors", state.connectors),
+    syncSharePointCollection("usageRecords", state.usageRecords),
+    syncSharePointCollection("useCases", state.useCases),
+  ]);
+  showToast("Saved dashboard data to SharePoint Lists.");
+}
+
+async function syncSharePointCollection(collectionName, records) {
+  const existing = await fetchSharePointListItems(collectionName);
+  const existingByDashboardId = new Map(existing.map((item) => [item.DashboardId, item]));
+  const desiredIds = new Set(records.map((record) => record.id));
+
+  await Promise.all(records.map((record) => upsertSharePointRecord(collectionName, record, existingByDashboardId)));
+  await Promise.all(
+    existing
+      .filter((item) => item.DashboardId && !desiredIds.has(item.DashboardId))
+      .map((item) => deleteSharePointItem(collectionName, item.Id)),
+  );
+}
+
+async function fetchSharePointCollection(collectionName) {
+  const items = await fetchSharePointListItems(collectionName);
+  return items
+    .map((item) => parseJsonSafe(item.Payload))
+    .filter(Boolean)
+    .map((payload) => ({ ...payload, id: payload.id || crypto.randomUUID() }));
+}
+
+async function upsertSharePointRecord(collectionName, record, existingByDashboardId = null) {
+  validateSharePointSettings();
+  const existing =
+    existingByDashboardId?.get(record.id) ||
+    (await findSharePointItemByDashboardId(collectionName, record.id));
+  const entityTypeName = await getSharePointListEntityType(collectionName);
+  const payload = {
+    __metadata: { type: entityTypeName },
+    Title: sharePointTitleFor(record),
+    DashboardId: record.id,
+    Payload: JSON.stringify(record),
+  };
+
+  if (existing) {
+    const headers = await sharePointWriteHeaders({
+      "IF-MATCH": "*",
+      "X-HTTP-Method": "MERGE",
+    });
+    await sharePointRequest(listItemUrl(collectionName, existing.Id), {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+  } else {
+    await sharePointRequest(listItemsUrl(collectionName), {
+      method: "POST",
+      headers: await sharePointWriteHeaders(),
+      body: JSON.stringify(payload),
+    });
+  }
+}
+
+async function deleteSharePointRecord(collectionName, dashboardId) {
+  if (storageSettings.mode !== "sharepoint") return;
+  validateSharePointSettings();
+  const existing = await findSharePointItemByDashboardId(collectionName, dashboardId);
+  if (!existing) return;
+  await deleteSharePointItem(collectionName, existing.Id);
+}
+
+async function deleteSharePointItem(collectionName, itemId) {
+  await sharePointRequest(listItemUrl(collectionName, itemId), {
+    method: "POST",
+    headers: await sharePointWriteHeaders({
+      "IF-MATCH": "*",
+      "X-HTTP-Method": "DELETE",
+    }),
+  });
+}
+
+async function findSharePointItemByDashboardId(collectionName, dashboardId) {
+  const url = `${listItemsUrl(collectionName)}?$select=Id,DashboardId&$filter=DashboardId eq '${escapeODataString(
+    dashboardId,
+  )}'&$top=1`;
+  const data = await sharePointRequest(url);
+  return sharePointItems(data)[0] || null;
+}
+
+async function fetchSharePointListItems(collectionName) {
+  const data = await sharePointRequest(
+    `${listItemsUrl(collectionName)}?$select=Id,Title,DashboardId,Payload&$top=5000`,
+  );
+  return sharePointItems(data);
+}
+
+async function sharePointRequest(url, options = {}) {
+  const response = await fetch(url, {
+    credentials: "same-origin",
+    ...options,
+    headers: {
+      Accept: "application/json;odata=verbose",
+      "Content-Type": "application/json;odata=verbose",
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`SharePoint returned HTTP ${response.status}`);
+  }
+
+  if (response.status === 204) return {};
+  const data = await response.json();
+  return data.d || data;
+}
+
+async function sharePointWriteHeaders(extraHeaders = {}) {
+  return {
+    "X-RequestDigest": await getSharePointDigest(),
+    ...extraHeaders,
+  };
+}
+
+async function getSharePointDigest() {
+  if (sharePointDigest?.expiresAt > Date.now()) {
+    return sharePointDigest.value;
+  }
+
+  const response = await fetch(`${storageSettings.siteUrl}/_api/contextinfo`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json;odata=verbose",
+      "Content-Type": "application/json;odata=verbose",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Unable to get SharePoint form digest: HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const context = data.d?.GetContextWebInformation;
+  sharePointDigest = {
+    value: context?.FormDigestValue,
+    expiresAt: Date.now() + Number(context?.FormDigestTimeoutSeconds || 1500) * 1000 - 60000,
+  };
+  if (!sharePointDigest.value) {
+    throw new Error("SharePoint did not return a form digest value.");
+  }
+  return sharePointDigest.value;
+}
+
+async function getSharePointListEntityType(collectionName) {
+  const cacheKey = `${storageSettings.siteUrl}|${listNameFor(collectionName)}`;
+  if (sharePointEntityTypeCache.has(cacheKey)) {
+    return sharePointEntityTypeCache.get(cacheKey);
+  }
+
+  const data = await sharePointRequest(
+    `${listRootUrl(collectionName)}?$select=ListItemEntityTypeFullName`,
+  );
+  sharePointEntityTypeCache.set(cacheKey, data.ListItemEntityTypeFullName);
+  return data.ListItemEntityTypeFullName;
+}
+
+function listItemsUrl(collectionName) {
+  return `${listRootUrl(collectionName)}/items`;
+}
+
+function listRootUrl(collectionName) {
+  return `${storageSettings.siteUrl}/_api/web/lists/getbytitle('${escapeODataString(
+    listNameFor(collectionName),
+  )}')`;
+}
+
+function listItemUrl(collectionName, itemId) {
+  return `${listItemsUrl(collectionName)}(${itemId})`;
+}
+
+function listNameFor(collectionName) {
+  return {
+    connectors: storageSettings.connectorListName,
+    usageRecords: storageSettings.usageListName,
+    useCases: storageSettings.useCaseListName,
+  }[collectionName];
+}
+
+function sharePointItems(data) {
+  return data?.value || data?.results || [];
+}
+
+function sharePointTitleFor(record) {
+  return String(record.title || record.name || record.model || record.provider || record.id).slice(0, 255);
+}
+
+function escapeODataString(value) {
+  return String(value).replaceAll("'", "''");
+}
+
+function parseJsonSafe(value) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    console.warn("Skipping invalid SharePoint list payload", error);
+    return null;
+  }
+}
+
 function exportData() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -772,16 +1092,16 @@ document.addEventListener("click", (event) => {
   if (action === "edit-connector") openConnectorForm(state.connectors.find((item) => item.id === id));
   if (action === "delete-connector") {
     state.connectors = state.connectors.filter((item) => item.id !== id);
-    persistAndRender();
+    persistAndRenderAsync().then(() => deleteSharePointRecord("connectors", id));
   }
   if (action === "delete-usage") {
     state.usageRecords = state.usageRecords.filter((item) => item.id !== id);
-    persistAndRender();
+    persistAndRenderAsync().then(() => deleteSharePointRecord("usageRecords", id));
   }
   if (action === "edit-use-case") openUseCaseForm(state.useCases.find((item) => item.id === id));
   if (action === "delete-use-case") {
     state.useCases = state.useCases.filter((item) => item.id !== id);
-    persistAndRender();
+    persistAndRenderAsync().then(() => deleteSharePointRecord("useCases", id));
   }
 });
 
@@ -791,6 +1111,13 @@ $("#addUseCaseButton").addEventListener("click", () => openUseCaseForm());
 $("#exportDataButton").addEventListener("click", exportData);
 $("#importDataInput").addEventListener("change", importData);
 $("#resetDemoButton").addEventListener("click", resetDemoData);
+els.storageForm.addEventListener("submit", saveStorageForm);
+$("#loadSharePointButton").addEventListener("click", loadFromSharePoint);
+$("#saveSharePointButton").addEventListener("click", () => {
+  storageSettings = readStorageSettingsFromForm();
+  saveStorageSettings();
+  saveAllToSharePoint().catch((error) => showToast(`SharePoint save failed: ${error.message}`, true));
+});
 
 $("#connectorProvider").addEventListener("change", (event) => {
   setField("connectorUsagePath", defaultUsagePath(event.target.value));
