@@ -6,6 +6,7 @@ investment for internal AI use cases.
 ## What is included
 
 - Browser-based dashboard that runs from static files (`index.html`, `styles.css`, `app.js`).
+- Regular users see a clean executive dashboard; setup is tucked behind **Admin settings**.
 - Can be hosted from a SharePoint document library.
 - Optional SharePoint Lists backing store for shared dashboard data.
 - API connector configuration for Open WebUI, Google Gemini, or a custom compatible endpoint.
@@ -33,7 +34,7 @@ The dashboard can be uploaded as static files to a SharePoint document library:
 1. Create a document library or folder for the dashboard.
 2. Upload `index.html`, `styles.css`, and `app.js` together.
 3. Open `index.html` from SharePoint.
-4. In **Hosting and storage**, choose **SharePoint Lists**.
+4. Open **Admin settings** and choose **SharePoint Lists**.
 5. Enter the SharePoint site URL, for example `https://tenant.sharepoint.com/sites/ai-roi`.
 6. Enter the list names and select **Save storage settings**.
 7. Use **Load from SharePoint** to read existing list rows or **Save all to SharePoint** to seed

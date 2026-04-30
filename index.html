@@ -9,71 +9,22 @@
   <body>
     <header class="app-header">
       <div>
-        <p class="eyebrow">Proof of concept</p>
+        <p class="eyebrow">Executive intelligence</p>
         <h1>AI ROI Dashboard</h1>
         <p class="lede">
-          Track token usage, estimate cost, and manage AI use cases without external fonts,
-          icons, analytics, or hosted assets.
+          See where AI is creating value, how adoption is trending, and which use cases deserve
+          the next investment.
         </p>
       </div>
       <div class="header-actions">
-        <button id="exportDataButton" class="button button-secondary" type="button">Export JSON</button>
-        <label class="button button-secondary file-button">
-          Import JSON
-          <input id="importDataInput" type="file" accept="application/json">
-        </label>
-        <button id="resetDemoButton" class="button button-ghost" type="button">Reset demo data</button>
+        <button id="addUseCaseButton" class="button" type="button">Add use case</button>
+        <button id="openAdminButton" class="button button-ghost admin-button" type="button" aria-haspopup="dialog">
+          Admin settings
+        </button>
       </div>
     </header>
 
     <main>
-      <section class="panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Hosting and storage</p>
-            <h2>SharePoint Lists</h2>
-          </div>
-          <span id="storageStatus" class="status-pill">Local browser storage</span>
-        </div>
-        <p class="section-copy">
-          Host these static files in a SharePoint document library and use SharePoint Lists as the
-          shared data store. The app uses the signed-in user's SharePoint permissions; no external
-          libraries or Microsoft Graph dependency are required.
-        </p>
-        <form id="storageForm" class="storage-form">
-          <div class="form-grid">
-            <label>
-              Storage mode
-              <select id="storageMode">
-                <option value="local">Local browser storage</option>
-                <option value="sharepoint">SharePoint Lists</option>
-              </select>
-            </label>
-            <label>
-              SharePoint site URL
-              <input id="sharePointSiteUrl" placeholder="https://tenant.sharepoint.com/sites/ai-roi">
-            </label>
-            <label>
-              Connector list
-              <input id="connectorListName" placeholder="AI ROI Connectors">
-            </label>
-            <label>
-              Usage list
-              <input id="usageListName" placeholder="AI ROI Usage Records">
-            </label>
-            <label>
-              Use case list
-              <input id="useCaseListName" placeholder="AI ROI Use Cases">
-            </label>
-          </div>
-          <div class="form-actions">
-            <button class="button" type="submit">Save storage settings</button>
-            <button id="loadSharePointButton" class="button button-secondary" type="button">Load from SharePoint</button>
-            <button id="saveSharePointButton" class="button button-secondary" type="button">Save all to SharePoint</button>
-          </div>
-        </form>
-      </section>
-
       <section class="summary-grid" aria-label="Executive summary">
         <article class="metric-card">
           <span class="metric-label">Total tokens</span>
@@ -100,25 +51,10 @@
       <section class="panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Usage ingestion</p>
-            <h2>API connectors</h2>
+            <p class="eyebrow">Adoption signal</p>
+            <h2>AI spend and usage</h2>
           </div>
-          <button id="addConnectorButton" class="button" type="button">Add connector</button>
-        </div>
-        <p class="section-copy">
-          Configure Open WebUI, Google Gemini, or compatible APIs by entering a base URL and
-          API token. Credentials are kept in this browser's local storage for the POC.
-        </p>
-        <div id="connectorList" class="connector-list"></div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Token ledger</p>
-            <h2>Usage records</h2>
-          </div>
-          <button id="addUsageButton" class="button button-secondary" type="button">Add manual record</button>
+          <button id="addUsageButton" class="button button-secondary" type="button">Add usage</button>
         </div>
         <div id="usageList" class="table-list"></div>
       </section>
@@ -126,10 +62,9 @@
       <section class="panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Business value</p>
+            <p class="eyebrow">Value pipeline</p>
             <h2>AI use cases</h2>
           </div>
-          <button id="addUseCaseButton" class="button" type="button">Add use case</button>
         </div>
         <div class="filters" aria-label="Use case filters">
           <label>
@@ -152,6 +87,92 @@
         <div id="useCaseList" class="use-case-list"></div>
       </section>
     </main>
+
+    <dialog id="adminDialog">
+      <div class="dialog-card admin-dialog">
+        <div class="dialog-title-row">
+          <div>
+            <p class="eyebrow">Administrator workspace</p>
+            <h2>Settings and data connections</h2>
+            <p class="section-copy">
+              Configure SharePoint storage, API connectors, and backup tools away from the regular
+              dashboard view.
+            </p>
+          </div>
+          <button class="icon-button" type="button" aria-label="Close admin settings" data-close-dialog>Close</button>
+        </div>
+
+        <section class="settings-block">
+          <div class="panel-heading">
+            <div>
+              <h3>Storage</h3>
+              <p class="muted">Choose whether this dashboard saves locally or to SharePoint Lists.</p>
+            </div>
+            <span id="storageStatus" class="status-pill">Local browser storage</span>
+          </div>
+          <form id="storageForm" class="storage-form">
+            <div class="form-grid">
+              <label>
+                Storage mode
+                <select id="storageMode">
+                  <option value="local">Local browser storage</option>
+                  <option value="sharepoint">SharePoint Lists</option>
+                </select>
+              </label>
+              <label>
+                SharePoint site URL
+                <input id="sharePointSiteUrl" placeholder="https://tenant.sharepoint.com/sites/ai-roi">
+              </label>
+              <label>
+                Connector list
+                <input id="connectorListName" placeholder="AI ROI Connectors">
+              </label>
+              <label>
+                Usage list
+                <input id="usageListName" placeholder="AI ROI Usage Records">
+              </label>
+              <label>
+                Use case list
+                <input id="useCaseListName" placeholder="AI ROI Use Cases">
+              </label>
+            </div>
+            <div class="form-actions">
+              <button class="button" type="submit">Save storage settings</button>
+              <button id="loadSharePointButton" class="button button-secondary" type="button">Load from SharePoint</button>
+              <button id="saveSharePointButton" class="button button-secondary" type="button">Save all to SharePoint</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="settings-block">
+          <div class="panel-heading">
+            <div>
+              <h3>Usage connectors</h3>
+              <p class="muted">Connect Open WebUI, Gemini, or an internal normalized usage API.</p>
+            </div>
+            <button id="addConnectorButton" class="button" type="button">Add connector</button>
+          </div>
+          <div id="connectorList" class="connector-list"></div>
+        </section>
+
+        <section class="settings-block">
+          <div class="panel-heading">
+            <div>
+              <h3>Backup and demo data</h3>
+              <p class="muted">Import, export, or restore sample data for demonstrations.</p>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button id="exportDataButton" class="button button-secondary" type="button">Export JSON</button>
+            <label class="button button-secondary file-button">
+              Import JSON
+              <input id="importDataInput" type="file" accept="application/json">
+            </label>
+            <button id="resetDemoButton" class="button button-ghost" type="button">Reset demo data</button>
+          </div>
+        </section>
+      </div>
+    </dialog>
 
     <dialog id="connectorDialog">
       <form id="connectorForm" method="dialog" class="dialog-card">

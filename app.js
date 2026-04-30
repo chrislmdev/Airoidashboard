@@ -118,6 +118,7 @@ const els = {
   tagFilter: $("#tagFilter"),
   searchFilter: $("#searchFilter"),
   toast: $("#toast"),
+  adminDialog: $("#adminDialog"),
   storageForm: $("#storageForm"),
   storageMode: $("#storageMode"),
   sharePointSiteUrl: $("#sharePointSiteUrl"),
@@ -1108,6 +1109,7 @@ document.addEventListener("click", (event) => {
 $("#addConnectorButton").addEventListener("click", () => openConnectorForm());
 $("#addUsageButton").addEventListener("click", () => openUsageForm());
 $("#addUseCaseButton").addEventListener("click", () => openUseCaseForm());
+$("#openAdminButton").addEventListener("click", () => openDialog(els.adminDialog));
 $("#exportDataButton").addEventListener("click", exportData);
 $("#importDataInput").addEventListener("change", importData);
 $("#resetDemoButton").addEventListener("click", resetDemoData);
